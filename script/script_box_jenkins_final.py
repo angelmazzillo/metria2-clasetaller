@@ -120,7 +120,7 @@ y_diff = y.diff().dropna()
 
 plt.figure(figsize=(10, 5))
 plt.plot(y_diff)
-plt.title("Serie diferenciada")
+plt.title("Valor de exportaciones (% del PIB) para Colombia, serie diferenciada")
 plt.xlabel("Fecha")
 plt.ylabel("Valor")
 plt.grid(True)
@@ -276,7 +276,7 @@ axes[0].set_title("FAC de los residuos al cuadrado")
 
 plot_pacf(residuos**2, lags=24, alpha=0.05, ax=axes[1])
 
-axes[1].set_title("FACP de los residuos")
+axes[1].set_title("FACP de los residuos al cuadrado")
 
 plt.tight_layout()
 plt.show()
@@ -366,3 +366,15 @@ plt.fill_between(
     alpha=0.3,
     label="Intervalo de confianza",
 )
+
+plt.title("Pronóstico del Modelo ARIMA(1,1,1)", fontsize=14, fontweight="bold", pad=15)
+plt.xlabel("Año", fontsize=11)
+plt.ylabel("Exportaciones (% del PIB)", fontsize=11)
+
+plt.legend(loc="upper left", frameon=True, facecolor="white", edgecolor="none")
+
+# Mostrar gráfica limpia
+plt.tight_layout()
+plt.show()
+
+# %%
