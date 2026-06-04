@@ -4,6 +4,7 @@
 
 import pandas as pd
 import warnings
+import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 from scipy.stats import jarque_bera
@@ -48,7 +49,7 @@ print(expocolombia.tail())
 # Crear serie de tiempo
 # ============================
 
-y = expocolombia["Valor de exportaciones como porcentaje del PIB"].copy()
+y = expocolombia["Valor de las exportaciones como porcentaje del PIB"].copy()
 y = pd.to_numeric(y, errors="coerce")
 y = y.dropna()
 
@@ -99,9 +100,8 @@ for clave, valor in resultado_diff[4].items():
 
 # %% Prueba de estacionariedad KPSS
 
-rezagos_fijos = 4
 print("=== Prueba KPSS: Serie original ===")
-resultado_kpss = kpss(y.dropna(), regression="c", nlags=rezagos_fijos)
+resultado_kpss = kpss(y.dropna(), regression="c", nlags="auto")
 print(f"Estadístico KPSS: {resultado_kpss[0]:.4f}")
 print(f"p-valor: {resultado_kpss[1]:.4f}")
 print("Valores críticos:")
@@ -111,16 +111,19 @@ for clave, valor in resultado_kpss[3].items():
 # H0: la serie es estacionaria.
 # Si p-value > 0.05, no se rechaza H0.
 
-# Resultados: la serie no es estacionaria de acuerdo a ambas pruebas, por lo que se propone diferenciarla una vez para intentar lograr estacionariedad.
-# , se propone diferenciarla una vez para intentar lograr estacionariedad.
+# Resultados: la serie es estacionaria de acuerdo a ambas pruebas, por lo que en principio no sería necesario aplicar ninguna
+# transformación de diferenciación. Sin embargo, la serie en realidad presenta una casi-raíz unitaria, como se verá a continuación,
+# por lo que es posible que un modelo ARIMA con d=1 sea más adecuado para capturar esa dinámica.
 
 # %% Serie diferenciada
-
 y_diff = y.diff().dropna()
 
+# Gráfica de la serie de tiempo de la "diferencia exportaciones tradicionales"
 plt.figure(figsize=(10, 5))
 plt.plot(y_diff)
-plt.title("Valor de exportaciones (% del PIB) para Colombia, serie diferenciada")
+plt.title(
+    "Valor de exportaciones (% del PIB) para Colombia, 1844-2024, serie diferenciada"
+)
 plt.xlabel("Fecha")
 plt.ylabel("Valor")
 plt.grid(True)
@@ -155,9 +158,8 @@ for clave, valor in resultado_diff[4].items():
 
 # %% Prueba de estacionariedad KPSS
 
-rezagos_fijos = 4
 print("=== Prueba KPSS: Serie diferenciada ===")
-resultado_kpss = kpss(y_diff.dropna(), regression="c", nlags=rezagos_fijos)
+resultado_kpss = kpss(y_diff.dropna(), regression="c", nlags="auto")
 print(f"Estadístico KPSS: {resultado_kpss[0]:.4f}")
 print(f"p-valor: {resultado_kpss[1]:.4f}")
 print("Valores críticos:")
@@ -167,22 +169,83 @@ for clave, valor in resultado_kpss[3].items():
 # H0: la serie es estacionaria.
 # Si p-value > 0.05, no se rechaza H0.
 
-# Luego de aplicar diferencia, la serie probablemente es estacionaria,
-# de acuerdo a ambas pruebas. Por lo tanto, proponemos que el orden de diferenciación d=1 para el modelo ARIMA.
+# Luego de aplicar transformación diferenciación, la serie probablemente es estacionariade acuerdo a ambas pruebas.
+# Por lo tanto, proponemos que de ser necesario aplicar una diferenciación,
+# entonces el orden de diferenciación debe ser d=1 para el modelo ARIMA.
 
-# %% Interpretación preliminar
+# %% ========================================================
+# Antes y después: serie original vs serie diferenciada
+# ===========================================================
 
-# La FAC decae rápidamente a cero, solamente las dos primeras autocorrelaciones son significativas.
-# La FACP decae rápidamente a cero, solamente las dos primeras autocorrelaciones son significativas.
-# Por tanto, proponemos que la serie tiene parte autorregresiva y de media móvil.
-# A partir del uso de criterios de información, llegaremos a una conclusión más precisa sobre los órdenes de cada parte del modelo ARIMA.
+# Creamos el lienzo principal
+fig, ax1 = plt.subplots(figsize=(11, 5.5))
 
-# %% Criterios de información AIC y BIC
+# --- Serie original (eje Y izquierdo - Azul) ---
+color_original = "#1f77b4"
+ax1.set_xlabel("Fecha", fontsize=11, fontweight="semibold")
+ax1.set_ylabel(
+    "Serie Original (% del PIB)",
+    color=color_original,
+    fontsize=11,
+    fontweight="semibold",
+)
+
+# Usamos directamente el objeto 'y' (su .index ya contiene las fechas)
+line1 = ax1.plot(
+    y.index,
+    y,
+    color=color_original,
+    linewidth=1.8,
+    label="Valor de exportaciones (% PIB)",
+)
+ax1.tick_params(axis="y", labelcolor=color_original)
+ax1.grid(True, linestyle="--", alpha=0.5)  # Cuadrícula sutil de fondo
+
+
+ax2 = ax1.twinx()
+color_dif = "#ff0e0e"
+ax2.set_ylabel(
+    "Serie Diferenciada", color=color_dif, fontsize=11, fontweight="semibold"
+)
+
+line2 = ax2.plot(
+    y_diff.index,
+    y_diff,
+    color=color_dif,
+    linewidth=1.2,
+    alpha=0.85,
+    label="Serie Diferenciada (d=1)",
+)
+ax2.tick_params(axis="y", labelcolor=color_dif)
+
+# --- Agregar una línea horizontal de referencia en 0 para la serie diferenciada ---
+ax2.axhline(0, color="gray", linestyle=":", alpha=0.6)
+
+# --- Configurar Leyenda Combinada ---
+# Sumamos las listas de líneas y etiquetas para agruparlas en un solo cuadro
+lines = line1 + line2
+labels = [l.get_label() for l in lines]
+ax1.legend(
+    lines, labels, loc="upper right", frameon=True, facecolor="white", edgecolor="none"
+)
+
+# Título del gráfico
+plt.title(
+    "Transformación de Exportaciones en Colombia (1844-2024)\nSerie Original vs. Serie Diferenciada",
+    fontsize=13,
+    fontweight="bold",
+    pad=15,
+)
+
+plt.tight_layout()
+plt.show()
+
+# %% Criterios de información AIC y BIC (SERIE ORIGINAL)
 
 # Listas con los órdenes que vamos a probar (de 0 a 2)
 p_values = [0, 1, 2]
 q_values = [0, 1, 2]
-d = 1  # Diferencia fija
+d = 0  # Diferencia fija
 
 resultados = []
 
@@ -193,7 +256,7 @@ for p in p_values:
             # Estimamos el modelo sobre la serie original (especificando order=(p, d, q))
             # Es mejor pasarle 'y' y dejar que SARIMAX haga la diferencia con d=1
             modelo = SARIMAX(
-                y,
+                np.log(y),
                 order=(p, d, q),
                 trend="n",
                 enforce_stationarity=False,
@@ -222,31 +285,95 @@ tabla_criterios = tabla_criterios.sort_values(by="BIC").reset_index(drop=True)
 warnings.filterwarnings("default")
 
 # Mostrar la tabla final
-print("=== RESULTADOS DE CÁLCULO DE AIC Y BIC ===")
+print("=== RESULTADOS DE CÁLCULO DE AIC Y BIC (SERIE ORIGINAL) ===")
+print(tabla_criterios)
+
+# %% Criterios de información AIC y BIC (SERIE DIFERENCIADA)
+
+# Listas con los órdenes que vamos a probar (de 0 a 2)
+p_values = [0, 1, 2]
+q_values = [0, 1, 2]
+d = 1  # Diferencia fija
+
+resultados = []
+
+# Bucle para evaluar cada combinación
+for p in p_values:
+    for q in q_values:
+        try:
+            # Estimamos el modelo sobre la serie original (especificando order=(p, d, q))
+            # Es mejor pasarle 'y' y dejar que SARIMAX haga la diferencia con d=1
+            modelo = SARIMAX(
+                np.log(y),
+                order=(p, d, q),
+                trend="n",
+                enforce_stationarity=False,
+                enforce_invertibility=False,
+            )
+            resultado_fit = modelo.fit(disp=False)
+
+            # Guardamos la información de cada modelo
+            resultados.append(
+                {
+                    "Modelo": f"ARIMA({p}, {d}, {q})",
+                    "AIC": resultado_fit.aic,
+                    "BIC": resultado_fit.bic,
+                }
+            )
+        except Exception:
+            continue
+
+# Convertir los resultados en un DataFrame de Pandas
+tabla_criterios = pd.DataFrame(resultados)
+
+# Ordenar la tabla de menor a mayor según el criterio BIC (el más estricto)
+tabla_criterios = tabla_criterios.sort_values(by="BIC").reset_index(drop=True)
+
+# Activar de nuevo las advertencias
+warnings.filterwarnings("default")
+
+# Mostrar la tabla final
+print("=== RESULTADOS DE CÁLCULO DE AIC Y BIC (SERIE DIFERENCIADA) ===")
 print(tabla_criterios)
 
 # %% =========================
 # PASO 2: ESTIMACIÓN
 # ============================
 
-modelo_arma11 = SARIMAX(
+# %% Modelo sobre la serie original, de acuerdo a la FAC y FACP y a los criterios de información
+
+modelo_ar1 = SARIMAX(
     y,
-    order=(1, 1, 1),
+    order=(1, 0, 0),
     trend="n",
     enforce_stationarity=False,
     enforce_invertibility=False,
 )
 
-resultado_arma11 = modelo_arma11.fit(disp=False)
+resultado_ar1 = modelo_ar1.fit(disp=False)
 
-print(resultado_arma11.summary())
+print(resultado_ar1.summary())
+
+# %% Modelo sobre la serie diferenciada, de acuerdo a la FAC y FACP y a los criterios de información
+
+modelo_arima02 = SARIMAX(
+    y,
+    order=(0, 1, 2),
+    trend="n",
+    enforce_stationarity=False,
+    enforce_invertibility=False,
+)
+
+resultado_arima02 = modelo_arima02.fit(disp=False)
+
+print(resultado_arima02.summary())
 
 
 # %% =========================
 # PASO 3: VALIDACIÓN DEL MODELO
 # ============================
 
-residuos = resultado_arma11.resid.dropna()
+residuos = resultado_arima02.resid.dropna()
 
 print(residuos.describe())
 
@@ -330,7 +457,7 @@ plt.show()
 
 modelo_pronostico = SARIMAX(
     y,
-    order=(1, 1, 1),
+    order=(0, 1, 2),
     trend="n",
     enforce_stationarity=False,
     enforce_invertibility=False,
@@ -367,7 +494,7 @@ plt.fill_between(
     label="Intervalo de confianza",
 )
 
-plt.title("Pronóstico del Modelo ARIMA(1,1,1)", fontsize=14, fontweight="bold", pad=15)
+plt.title("Pronóstico del Modelo ARIMA(0,1,2)", fontsize=14, fontweight="bold", pad=15)
 plt.xlabel("Año", fontsize=11)
 plt.ylabel("Exportaciones (% del PIB)", fontsize=11)
 
@@ -376,5 +503,3 @@ plt.legend(loc="upper left", frameon=True, facecolor="white", edgecolor="none")
 # Mostrar gráfica limpia
 plt.tight_layout()
 plt.show()
-
-# %%
