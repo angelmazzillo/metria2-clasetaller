@@ -422,7 +422,7 @@ print(ljung_box)
 
 # %% Prueba ARCH de heterocedasticidad
 
-arch_test = het_arch(residuos, nlags=12)
+arch_test = het_arch(residuos, nlags=18)
 
 print("Prueba ARCH")
 print("LM statistic:", arch_test[0])
